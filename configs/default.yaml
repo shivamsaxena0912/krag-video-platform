@@ -1,0 +1,180 @@
+# KRAG Video Platform - Default Configuration
+# This file contains default settings for pipeline execution
+
+# =============================================================================
+# Pipeline Configuration
+# =============================================================================
+pipeline:
+  # Cost controls
+  max_cost: 50.0
+  max_iterations: 3
+  quality_threshold: 7.0
+
+  # Parallelism
+  max_parallel_scenes: 3
+  max_parallel_assets: 5
+
+  # Timeouts (seconds)
+  stage_timeout: 600
+  total_timeout: 3600
+
+  # Quality gates
+  require_human_review: true
+  auto_approve_threshold: 8.5
+
+# =============================================================================
+# LLM Configuration
+# =============================================================================
+llm:
+  primary:
+    provider: openai
+    model: gpt-4-turbo
+    max_tokens: 4096
+    temperature: 0.7
+
+  fallback:
+    - provider: anthropic
+      model: claude-3-sonnet-20240229
+    - provider: openai
+      model: gpt-3.5-turbo
+
+  # Retry settings
+  max_retries: 3
+  retry_delay: 1.0
+
+# =============================================================================
+# Embedding Configuration
+# =============================================================================
+embedding:
+  model: text-embedding-3-large
+  dimensions: 3072
+  batch_size: 100
+
+# =============================================================================
+# Image Generation Configuration
+# =============================================================================
+image_generation:
+  primary:
+    provider: replicate
+    model: sdxl
+    width: 1920
+    height: 1080
+    num_inference_steps: 30
+    guidance_scale: 7.5
+
+  fallback:
+    - provider: openai
+      model: dall-e-3
+
+  # Quality settings
+  default_quality: high
+  consistency_seed: null  # Set for reproducible results
+
+# =============================================================================
+# Voice Synthesis Configuration
+# =============================================================================
+voice_synthesis:
+  provider: elevenlabs
+  default_voice_id: 21m00Tcm4TlvDq8ikWAM
+
+  # Voice settings
+  stability: 0.5
+  similarity_boost: 0.75
+  style: 0.0
+
+  # Fallback
+  fallback_provider: openai
+  fallback_voice: onyx
+
+# =============================================================================
+# Video Assembly Configuration
+# =============================================================================
+video_assembly:
+  # Output settings
+  output_format: mp4
+  output_codec: h264
+  output_quality: high
+
+  # Resolution
+  width: 1920
+  height: 1080
+  fps: 30
+
+  # Motion effects
+  ken_burns_zoom: 1.1
+  ken_burns_duration_multiplier: 1.0
+
+  # Transitions
+  default_transition: dissolve
+  default_transition_duration: 0.5
+
+# =============================================================================
+# Audio Configuration
+# =============================================================================
+audio:
+  # Mix levels
+  voiceover_volume: 1.0
+  music_volume: 0.3
+  sfx_volume: 0.5
+  ambient_volume: 0.2
+
+  # Processing
+  normalize: true
+  target_loudness: -14  # LUFS
+
+# =============================================================================
+# Quality Thresholds
+# =============================================================================
+quality:
+  # Dimension minimums (1-5 scale)
+  min_narrative_clarity: 3
+  min_hook_strength: 3
+  min_pacing: 3
+  min_shot_composition: 3
+  min_continuity: 4  # Higher bar for continuity
+  min_audio_mix: 3
+
+  # Overall minimum (1-10 scale)
+  min_overall_score: 6.0
+
+# =============================================================================
+# KRAG Configuration
+# =============================================================================
+krag:
+  # Text knowledge plane
+  text_knowledge:
+    collection: text_knowledge
+    top_k: 5
+    min_similarity: 0.7
+
+  # Video knowledge plane
+  video_knowledge:
+    collection: video_knowledge
+    top_k: 5
+    min_similarity: 0.6
+
+  # Retrieval settings
+  rerank_results: true
+  include_graph_context: true
+
+# =============================================================================
+# Storage Configuration
+# =============================================================================
+storage:
+  # Asset storage
+  asset_prefix: assets/
+  output_prefix: outputs/
+  artifact_prefix: artifacts/
+
+  # Retention (days)
+  draft_retention: 7
+  output_retention: -1  # Never delete
+  artifact_retention: 30
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  level: INFO
+  format: json  # json or console
+  include_request_id: true
