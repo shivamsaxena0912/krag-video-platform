@@ -105,6 +105,22 @@ class DimensionScores(BaseModel):
         return self.average() * 2
 
 
+class TimeRange(BaseModel):
+    """A time range within a video."""
+
+    model_config = ConfigDict(frozen=True)
+
+    start_seconds: float = Field(ge=0)
+    end_seconds: float | None = None
+
+    @property
+    def duration(self) -> float | None:
+        """Calculate duration if end is specified."""
+        if self.end_seconds is not None:
+            return self.end_seconds - self.start_seconds
+        return None
+
+
 class FeedbackIssue(BaseModel):
     """A specific issue identified during evaluation."""
 
@@ -115,7 +131,9 @@ class FeedbackIssue(BaseModel):
     severity: IssueSeverity = IssueSeverity.MINOR
     description: str
     fix_category: FixCategory = FixCategory.OTHER
+    taxonomy_labels: list[str] = Field(default_factory=list)  # Arbitrary labels
     suggested_fix: str | None = None
+    time_range: TimeRange | None = None  # Where in video this issue occurs
 
 
 class TimestampedNote(BaseModel):
@@ -156,10 +174,14 @@ class FeedbackAnnotation(BaseModel):
     # Target
     target_type: FeedbackTargetType
     target_id: str
+    target_time_range: TimeRange | None = None  # Optional time scope within target
 
-    # Scores
+    # Scores (rubric-based)
     dimension_scores: DimensionScores = Field(default_factory=DimensionScores)
     overall_score: float = Field(ge=1, le=10, default=5.0)
+
+    # Taxonomy labels for classification
+    taxonomy_labels: list[str] = Field(default_factory=list)
 
     # Details
     issues: list[FeedbackIssue] = Field(default_factory=list)

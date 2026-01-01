@@ -123,14 +123,48 @@ krag-video-platform/
     └── samples/
 ```
 
-## Quick Start
+## Developer Quickstart
+
+Get the full demo running in under 5 minutes:
+
+```bash
+# 1. Clone and setup
+git clone https://github.com/your-org/krag-video-platform.git
+cd krag-video-platform
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+# 2. Start infrastructure (Neo4j, Qdrant, Redis, PostgreSQL)
+docker-compose up -d
+
+# 3. Wait for services to be healthy (~30 seconds)
+docker-compose ps  # All should show "healthy"
+
+# 4. Run the end-to-end demo
+python scripts/run_demo.py
+```
+
+**What the demo does:**
+1. Parses `examples/story_001.txt` (The Fall of Rome narrative)
+2. Generates a SceneGraph with scenes, characters, locations, and shots
+3. Ingests everything into Neo4j (Knowledge Graph)
+4. Indexes scenes and shots into Qdrant (Vector DB)
+5. Evaluates quality with the Critic Agent
+6. Stores feedback annotations in Neo4j
+
+**View results:**
+- Neo4j Browser: http://localhost:7474 (neo4j/krag_password_123)
+- Qdrant Dashboard: http://localhost:6333/dashboard
+- SceneGraph JSON: `outputs/story_*.json`
+
+---
+
+## Quick Start (Detailed)
 
 ### Prerequisites
 
 - Python 3.11+
 - Docker & Docker Compose
-- Neo4j (Graph DB)
-- Qdrant or Pinecone (Vector DB)
 
 ### Installation
 
@@ -153,7 +187,8 @@ cp configs/.env.example configs/.env
 docker-compose up -d
 
 # Run tests
-pytest tests/
+pytest tests/unit/              # Unit tests (no services needed)
+pytest tests/integration/       # Integration tests (services required)
 ```
 
 ### First Run

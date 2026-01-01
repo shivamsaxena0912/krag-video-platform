@@ -4,6 +4,95 @@
 
 The KRAG video platform is designed for production deployment with scalability, reliability, and cost efficiency in mind.
 
+---
+
+## Local Development Stack
+
+### Quick Start
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Check health status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Reset all data
+docker-compose down -v
+```
+
+### Service Ports & Credentials
+
+| Service | Port(s) | Credentials | Health Check |
+|---------|---------|-------------|--------------|
+| **Neo4j** | 7474 (HTTP), 7687 (Bolt) | `neo4j` / `krag_password_123` | http://localhost:7474 |
+| **Qdrant** | 6333 (REST), 6334 (gRPC) | None (no auth in dev) | http://localhost:6333/readiness |
+| **Redis** | 6379 | None | `redis-cli ping` |
+| **PostgreSQL** | 5432 | `krag` / `krag_password_123` / `krag_video` | `pg_isready` |
+| **MinIO** | 9000 (API), 9001 (Console) | `krag_minio` / `krag_minio_password_123` | http://localhost:9000/minio/health/live |
+
+### Connection URLs
+
+```bash
+# Neo4j
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=krag_password_123
+
+# Qdrant
+QDRANT_URL=http://localhost:6333
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# PostgreSQL
+DATABASE_URL=postgresql+asyncpg://krag:krag_password_123@localhost:5432/krag_video
+
+# MinIO (S3-compatible)
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY=krag_minio
+S3_SECRET_KEY=krag_minio_password_123
+```
+
+### Web UIs
+
+- **Neo4j Browser**: http://localhost:7474
+- **Qdrant Dashboard**: http://localhost:6333/dashboard
+- **MinIO Console**: http://localhost:9001
+
+### Health Checks
+
+All services include health checks. Verify with:
+
+```bash
+# Check all services are healthy
+docker-compose ps
+
+# Expected output (all should show "healthy"):
+# krag-neo4j      ... (healthy)
+# krag-qdrant     ... (healthy)
+# krag-redis      ... (healthy)
+# krag-postgres   ... (healthy)
+# krag-minio      ... (healthy)
+```
+
+### Volumes
+
+Data is persisted in named volumes:
+- `neo4j_data` - Neo4j graph data
+- `qdrant_data` - Qdrant vectors
+- `redis_data` - Redis cache
+- `postgres_data` - PostgreSQL tables
+- `minio_data` - Object storage
+
+---
+
 ## Architecture Diagram
 
 ```
