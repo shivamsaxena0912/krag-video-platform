@@ -1,0 +1,67 @@
+{
+  "pilot_id": "pilot_20240115_abc12345",
+  "founder_name": "Alice Chen",
+  "company_name": "AcmeAI",
+  "scenario_type": "feature_launch",
+  "brand_context": {
+    "brand_name": "Acme Corp",
+    "tone": "bold",
+    "pacing_aggressiveness": 0.8,
+    "claim_conservativeness": "aggressive"
+  },
+  "playbook_version": null,
+  "runs": [
+    {
+      "attempt_id": "attempt_1_def45678",
+      "attempt_number": 1,
+      "created_at": "2024-01-15T10:00:00Z",
+      "video_path": "outputs/pilot_20240115_abc12345/attempt_1/draft_v1.mp4",
+      "review_pack_path": "outputs/pilot_20240115_abc12345/attempt_1/review_pack",
+      "time_to_first_cut_seconds": 45.2,
+      "iteration_count": 2,
+      "total_cost_dollars": 0.12,
+      "sla_passed": true,
+      "sla_violations": [],
+      "founder_feedback": "Good start but the hook is weak. I want something that grabs attention immediately.",
+      "feedback_received_at": "2024-01-15T14:30:00Z",
+      "feedback_level": "major_changes"
+    },
+    {
+      "attempt_id": "attempt_2_ghi78901",
+      "attempt_number": 2,
+      "created_at": "2024-01-16T09:00:00Z",
+      "video_path": "outputs/pilot_20240115_abc12345/attempt_2/draft_v1.mp4",
+      "review_pack_path": "outputs/pilot_20240115_abc12345/attempt_2/review_pack",
+      "time_to_first_cut_seconds": 38.7,
+      "iteration_count": 1,
+      "total_cost_dollars": 0.08,
+      "sla_passed": true,
+      "sla_violations": [],
+      "founder_feedback": "Much better hook! Can you make the ending a bit punchier with a clearer CTA?",
+      "feedback_received_at": "2024-01-16T11:15:00Z",
+      "feedback_level": "minor_changes"
+    },
+    {
+      "attempt_id": "attempt_3_jkl01234",
+      "attempt_number": 3,
+      "created_at": "2024-01-16T15:00:00Z",
+      "video_path": "outputs/pilot_20240115_abc12345/attempt_3/draft_v1.mp4",
+      "review_pack_path": "outputs/pilot_20240115_abc12345/attempt_3/review_pack",
+      "time_to_first_cut_seconds": 35.1,
+      "iteration_count": 1,
+      "total_cost_dollars": 0.06,
+      "sla_passed": true,
+      "sla_violations": [],
+      "founder_feedback": "Perfect! This is ready to publish.",
+      "feedback_received_at": "2024-01-16T16:45:00Z",
+      "feedback_level": "approve"
+    }
+  ],
+  "status": "completed",
+  "approval_outcome": "approved",
+  "created_at": "2024-01-15T09:30:00Z",
+  "updated_at": "2024-01-16T16:45:00Z",
+  "notes": "",
+  "max_attempts": 5,
+  "max_iterations_per_attempt": 3
+}

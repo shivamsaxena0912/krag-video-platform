@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "KRAG-driven AI video creation platform"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 authors = [
     { name = "KRAG Team" }
 ]

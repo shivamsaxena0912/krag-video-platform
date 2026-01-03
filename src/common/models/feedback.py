@@ -1,5 +1,7 @@
 """Feedback and quality evaluation models."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
 
@@ -159,6 +161,105 @@ class FixRequest(BaseModel):
     priority: int = Field(default=1, ge=1, le=5)
 
 
+class PacingFeedback(str, Enum):
+    """Pacing assessment for a shot or sequence."""
+
+    TOO_FAST = "too_fast"  # Shot duration too short
+    TOO_SLOW = "too_slow"  # Shot duration too long
+    APPROPRIATE = "appropriate"  # Duration is good
+    NEEDS_BREATHING_ROOM = "needs_breathing_room"  # Add pause before/after
+    JARRING_TRANSITION = "jarring_transition"  # Cut feels abrupt
+
+
+class ShotIntentAssessment(str, Enum):
+    """Assessment of whether shot achieves its intended purpose."""
+
+    EFFECTIVE = "effective"  # Shot achieves its role
+    PARTIALLY_EFFECTIVE = "partially_effective"  # Room for improvement
+    INEFFECTIVE = "ineffective"  # Shot doesn't achieve its role
+    WRONG_CHOICE = "wrong_choice"  # Different shot type needed
+
+
+class ShotFeedback(BaseModel):
+    """Detailed feedback for a single shot.
+
+    Allows experts to comment on pacing, shot intent, and duration
+    adjustments at the shot level.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str = Field(default_factory=lambda: generate_id("sfb"))
+    shot_id: str
+    shot_sequence: int = 0
+
+    # Pacing assessment
+    pacing: PacingFeedback = PacingFeedback.APPROPRIATE
+    pacing_comment: str = ""
+    suggested_duration_seconds: float | None = None  # Expert's preferred duration
+
+    # Shot intent assessment
+    intent_assessment: ShotIntentAssessment = ShotIntentAssessment.EFFECTIVE
+    intent_comment: str = ""  # Why it does/doesn't work
+    intended_role: str = ""  # What role was this shot supposed to play
+
+    # Duration adjustments
+    duration_delta_seconds: float = 0.0  # +/- seconds from current
+    extend_reason: str = ""  # Why extend (emotional beat, let moment breathe)
+    shorten_reason: str = ""  # Why shorten (loses momentum, redundant)
+
+    # Visual composition feedback
+    composition_score: int = Field(ge=1, le=5, default=3)
+    composition_comment: str = ""
+    framing_suggestion: str = ""  # e.g., "Subject should be in right third"
+    motion_suggestion: str = ""  # e.g., "Use static instead of pan"
+
+    # Transition feedback
+    transition_in_comment: str = ""
+    transition_out_comment: str = ""
+    suggested_transition_type: str | None = None
+
+    # General notes
+    expert_notes: str = ""
+    priority: int = Field(ge=1, le=5, default=3)  # How important is this feedback
+
+    # Playbook constraint suggestions
+    suggested_constraints: list[str] = Field(default_factory=list)
+    # e.g., ["prefer_static", "min_duration:4.0", "longer_establishing"]
+
+
+class SequenceFeedback(BaseModel):
+    """Feedback on a sequence of shots (scene-level pacing)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str = Field(default_factory=lambda: generate_id("seqfb"))
+    scene_id: str
+    shot_ids: list[str] = Field(default_factory=list)
+
+    # Sequence pacing
+    overall_pacing: PacingFeedback = PacingFeedback.APPROPRIATE
+    rhythm_comment: str = ""  # e.g., "Shot lengths too uniform, needs variety"
+
+    # Shot order feedback
+    reorder_suggestion: list[int] | None = None  # Suggested sequence order
+    reorder_reason: str = ""
+
+    # Shot count feedback
+    too_many_shots: bool = False
+    too_few_shots: bool = False
+    shot_count_comment: str = ""
+
+    # Suggested additions/removals
+    shots_to_remove: list[str] = Field(default_factory=list)
+    shots_to_add: list[str] = Field(default_factory=list)  # Descriptions of new shots
+    remove_reasons: dict[str, str] = Field(default_factory=dict)
+    add_reasons: list[str] = Field(default_factory=list)
+
+    # Playbook constraints for this sequence
+    suggested_constraints: list[str] = Field(default_factory=list)
+
+
 class FeedbackAnnotation(BaseModel):
     """Complete structured feedback on a video/scene/shot."""
 
@@ -188,9 +289,18 @@ class FeedbackAnnotation(BaseModel):
     strengths: list[str] = Field(default_factory=list)
     timestamped_notes: list[TimestampedNote] = Field(default_factory=list)
 
+    # Shot-level feedback (for expert review of individual shots)
+    shot_feedbacks: list[ShotFeedback] = Field(default_factory=list)
+
+    # Sequence-level feedback (for scene pacing review)
+    sequence_feedbacks: list[SequenceFeedback] = Field(default_factory=list)
+
     # Action
     recommendation: FeedbackRecommendation = FeedbackRecommendation.MINOR_FIXES
     fix_requests: list[FixRequest] = Field(default_factory=list)
+
+    # Playbook constraints derived from this feedback
+    derived_constraints: list[str] = Field(default_factory=list)
 
     def summary(self) -> dict:
         """Return summary for logging."""

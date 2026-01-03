@@ -1,5 +1,7 @@
 """Shot plan and shot-related models."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
 
@@ -117,6 +119,119 @@ class AudioCueType(str, Enum):
     SILENCE = "silence"
 
 
+class ShotRole(str, Enum):
+    """Narrative role of a shot within a scene."""
+
+    ESTABLISHING = "establishing"  # Sets location/context
+    ACTION = "action"  # Shows main activity
+    REACTION = "reaction"  # Character response
+    DETAIL = "detail"  # Close-up on significant object
+    TRANSITION = "transition"  # Bridges scenes
+    MONTAGE = "montage"  # Part of rapid sequence
+    CLIMAX = "climax"  # Peak dramatic moment
+    RESOLUTION = "resolution"  # Closing/calming shot
+
+
+class VisualFidelityLevel(str, Enum):
+    """Visual fidelity level for asset generation.
+
+    PLACEHOLDER: Fast, low-cost placeholder images for iteration
+    REFERENCE: Higher-quality AI-generated images for look-dev
+    """
+
+    PLACEHOLDER = "placeholder"
+    REFERENCE = "reference"
+
+
+class ShotPurpose(str, Enum):
+    """Editorial purpose of a shot - mandatory for editorial authority.
+
+    Every shot MUST declare exactly one purpose. Shots without a declared
+    purpose are automatically removed during the trimming pass.
+
+    INFORMATION: Delivers facts, context, or exposition
+    EMOTION: Creates or amplifies emotional response
+    ATMOSPHERE: Establishes mood, tone, or environment
+    TRANSITION: Bridges scenes or shifts narrative beats
+    """
+
+    INFORMATION = "information"
+    EMOTION = "emotion"
+    ATMOSPHERE = "atmosphere"
+    TRANSITION = "transition"
+
+
+class BeatIntensity(str, Enum):
+    """Rhythmic intensity of a shot - controls tempo and contrast.
+
+    The system enforces variation: no long runs of identical intensity.
+    This is how rhythm is created.
+
+    LOW: Breathing room, contemplation, stillness
+    MEDIUM: Normal narrative flow, neutral energy
+    HIGH: Peak moments, urgency, maximum engagement
+    """
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class EndingIntent(str, Enum):
+    """Explicit intent for the final shot - no neutral endings allowed.
+
+    The system biases duration and intensity to support this intent.
+
+    RESOLUTION: Emotional closure, catharsis, peace
+    PROVOCATION: Lingering question, tension, "what now?"
+    TRANSITION: Continuation implied, story goes on
+    """
+
+    RESOLUTION = "resolution"
+    PROVOCATION = "provocation"
+    TRANSITION = "transition"
+
+
+class LensType(str, Enum):
+    """Camera lens type affecting perspective."""
+
+    ULTRA_WIDE = "ultra_wide"  # 14-24mm, expansive, distortion
+    WIDE = "wide"  # 24-35mm, environmental
+    NORMAL = "normal"  # 35-50mm, natural perspective
+    SHORT_TELE = "short_tele"  # 85-135mm, portraits, compression
+    TELEPHOTO = "telephoto"  # 200mm+, extreme compression, isolation
+    MACRO = "macro"  # Extreme close-up
+
+
+class LightingStyle(str, Enum):
+    """Lighting style/mood."""
+
+    NATURAL = "natural"  # Realistic daylight
+    HIGH_KEY = "high_key"  # Bright, low contrast, optimistic
+    LOW_KEY = "low_key"  # Dark, high contrast, dramatic
+    REMBRANDT = "rembrandt"  # Classic portrait, triangle shadow
+    SILHOUETTE = "silhouette"  # Backlit, subject in shadow
+    GOLDEN_HOUR = "golden_hour"  # Warm, soft, romantic
+    BLUE_HOUR = "blue_hour"  # Cool, ethereal, melancholy
+    DRAMATIC = "dramatic"  # Strong shadows, tension
+    DIFFUSED = "diffused"  # Soft, even, dreamlike
+
+
+class CompositionZone(str, Enum):
+    """Precise composition zone based on rule of thirds grid."""
+
+    CENTER = "center"
+    TOP_LEFT = "top_left"
+    TOP_CENTER = "top_center"
+    TOP_RIGHT = "top_right"
+    MIDDLE_LEFT = "middle_left"
+    MIDDLE_RIGHT = "middle_right"
+    BOTTOM_LEFT = "bottom_left"
+    BOTTOM_CENTER = "bottom_center"
+    BOTTOM_RIGHT = "bottom_right"
+    FULL_FRAME = "full_frame"  # Subject fills frame
+
+
 # ============================================================================
 # Component Models
 # ============================================================================
@@ -174,6 +289,79 @@ class AudioCue(BaseModel):
     timing: str = "start"  # "start", "middle", "end", or timestamp
 
 
+class SubjectEntity(BaseModel):
+    """An entity visible in the shot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    entity_id: str = ""  # Reference to character/location/prop ID
+    entity_type: str = "character"  # character, location, prop, symbol
+    name: str = ""
+    screen_position: CompositionZone = CompositionZone.CENTER
+    prominence: str = "primary"  # primary, secondary, background
+    action: str = ""  # What the entity is doing
+
+
+class VisualSymbol(BaseModel):
+    """Visual symbolism or motif in the shot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str  # e.g., "broken sword", "setting sun", "closed door"
+    meaning: str  # What it represents narratively
+    visual_treatment: str = ""  # How to emphasize it (focus, framing, lighting)
+
+
+class ShotVisualSpec(BaseModel):
+    """Complete visual specification for a shot.
+
+    This model provides deterministic, explicit visual parameters
+    that the renderer and image generator can consume directly.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    # Visual fidelity level (PLACEHOLDER default, REFERENCE for look-dev)
+    fidelity_level: VisualFidelityLevel = VisualFidelityLevel.PLACEHOLDER
+
+    # Shot role in the narrative
+    role: ShotRole = ShotRole.ACTION
+
+    # Camera setup
+    lens_type: LensType = LensType.NORMAL
+    camera_height: str = "eye_level"  # ground, low, eye_level, high, aerial
+
+    # Composition
+    primary_zone: CompositionZone = CompositionZone.CENTER
+    secondary_zone: CompositionZone | None = None
+    negative_space: str = ""  # Where empty space should be (left, right, top, bottom)
+
+    # Lighting
+    lighting_style: LightingStyle = LightingStyle.NATURAL
+    key_light_direction: str = "front"  # front, side, back, top, bottom
+    fill_ratio: str = "balanced"  # balanced, high_contrast, minimal_fill
+    practical_lights: list[str] = Field(default_factory=list)  # e.g., ["candles", "fireplace"]
+
+    # Subjects in frame
+    subjects: list[SubjectEntity] = Field(default_factory=list)
+
+    # Color and mood
+    color_palette: list[str] = Field(default_factory=list)  # e.g., ["warm earth tones", "desaturated"]
+    color_temperature: str = "neutral"  # warm, neutral, cool
+
+    # Symbolism
+    symbols: list[VisualSymbol] = Field(default_factory=list)
+
+    # Ken Burns / animation hints for renderer
+    ken_burns_start_zone: CompositionZone = CompositionZone.CENTER
+    ken_burns_end_zone: CompositionZone = CompositionZone.CENTER
+    zoom_direction: str = "none"  # in, out, none
+
+    # Prompt generation helpers
+    style_keywords: list[str] = Field(default_factory=list)  # e.g., ["cinematic", "film grain"]
+    reference_films: list[str] = Field(default_factory=list)  # e.g., ["Gladiator", "Rome HBO"]
+
+
 # ============================================================================
 # Shot
 # ============================================================================
@@ -194,6 +382,18 @@ class Shot(BaseModel):
     subject: str  # What/who is the focus
     composition: Composition = Field(default_factory=Composition)
     motion: MotionSpec = Field(default_factory=MotionSpec)
+
+    # MANDATORY: Editorial purpose - shots without purpose are removed
+    purpose: ShotPurpose | None = None  # None = will be removed in trimming pass
+
+    # Rhythmic intensity - controls tempo and contrast
+    intensity: BeatIntensity = BeatIntensity.MEDIUM
+
+    # Ending intent (only for final shot) - no neutral endings
+    ending_intent: EndingIntent | None = None
+
+    # Visual specification (populated by DirectorAgent)
+    visual_spec: ShotVisualSpec | None = None
 
     # Context
     mood: str = ""

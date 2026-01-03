@@ -1,5 +1,7 @@
 """Indexing functions for scenes and shots in Qdrant."""
 
+from __future__ import annotations
+
 from uuid import uuid4
 
 from qdrant_client.http import models as qdrant_models

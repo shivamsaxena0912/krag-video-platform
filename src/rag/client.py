@@ -1,5 +1,7 @@
 """Qdrant client for vector storage."""
 
+from __future__ import annotations
+
 from qdrant_client import QdrantClient, AsyncQdrantClient
 from qdrant_client.http import models as qdrant_models
 

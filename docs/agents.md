@@ -253,80 +253,103 @@ class VideoRetrievalResult(BaseModel):
 
 ---
 
-## 4. Creative Director Agent
+## 4. Director Agent v1
 
-**Purpose**: Create shot plans from validated scenes using cinematic knowledge.
+**Purpose**: Create shot plans with variable shot counts, duration budgeting, and hook planning.
+
+**Implementation**: `src/agents/director.py`
 
 ### Contract
 
 ```python
-class CreativeDirectorInput(BaseModel):
-    """Input to the Creative Director Agent."""
-    scene: ValidatedScene
-    krag_context: KRAGRetrievalOutput
-    style_guidelines: StyleGuidelines | None = None
-    constraints: list[CreativeConstraint] = []
+class DirectorInput(BaseModel):
+    """Input to the Director Agent."""
+    scene: Scene
+    scene_index: int = 0  # Position in story (0 = first scene)
+    total_scenes: int = 1
+    config: DirectorConfig = DirectorConfig()
+    previous_ending_shot_type: ShotType | None = None  # For continuity
+    story_mood: str = "neutral"
+    playbook_constraints: list[str] = []  # From feedback
 
 
-class StyleGuidelines(BaseModel):
-    """Visual and pacing style guidelines."""
-    visual_style: str  # e.g., "cinematic documentary"
-    pacing: str  # e.g., "contemplative", "dynamic"
-    color_palette: str | None
-    era_treatment: str | None
-    reference_videos: list[str] = []
+class DirectorConfig(BaseModel):
+    """Configuration for shot planning."""
+    target_duration_seconds: float = 60.0
+    min_shot_duration: float = 2.0
+    max_shot_duration: float = 8.0
+    hook_duration: float = 3.0  # First 3 seconds
+    min_shots_per_scene: int = 3
+    max_shots_per_scene: int = 10
+    default_pacing: PacingStyle = PacingStyle.MODERATE
+    default_hook_strategy: HookStrategy = HookStrategy.VISUAL_IMPACT
 
 
-class CreativeDirectorOutput(BaseModel):
-    """Output from the Creative Director Agent."""
+class PacingStyle(str, Enum):
+    CONTEMPLATIVE = "contemplative"  # Longer shots, slower movement
+    MODERATE = "moderate"
+    DYNAMIC = "dynamic"  # Faster cuts, more variety
+    INTENSE = "intense"  # Quick cuts, high energy
+
+
+class HookStrategy(str, Enum):
+    VISUAL_IMPACT = "visual_impact"  # Start with striking image
+    MYSTERY = "mystery"  # Start with intriguing detail
+    ACTION = "action"  # Start mid-action
+    EMOTIONAL = "emotional"  # Start with emotional close-up
+
+
+class DirectorOutput(BaseModel):
+    """Output from the Director Agent."""
     shot_plan: ShotPlan
-    creative_notes: list[str]
-    estimated_duration_seconds: float
-    complexity_score: float  # 0-1, affects generation cost
-
-
-class ShotPlan(BaseModel):
-    """Complete shot plan for a scene."""
-    scene_id: str
-    shots: list[PlannedShot]
-    transitions: list[Transition]
-    audio_plan: AudioPlan
-    pacing_rationale: str
-
-
-class PlannedShot(BaseModel):
-    """A planned shot within a scene."""
-    shot_id: str
-    sequence: int
-    shot_type: ShotType  # WIDE, MEDIUM, CLOSE_UP, EXTREME_CLOSE, CUTAWAY
-    duration_seconds: float
-    subject: str
-    composition: str
-    motion: MotionType  # STATIC, PAN_LEFT, PAN_RIGHT, ZOOM_IN, ZOOM_OUT, DOLLY
-    mood: str
-    visual_prompt_hints: list[str]
-    narration_segment: str | None
-    audio_cues: list[str]
+    shots: list[Shot]
+    hook_analysis: dict  # Strategy, duration, shot count
+    duration_budget: dict  # Total, hook, remaining, average
+    planning_notes: list[str]
 ```
 
 ### Behavior
 
-1. Analyze scene for key visual moments
-2. Retrieve similar shot sequences from KRAG
-3. Apply cinematic grammar rules
-4. Balance shot variety (wide → medium → close)
-5. Plan transitions and pacing
-6. Allocate narration to shots
-7. Specify audio requirements
+1. **Scene Analysis**: Calculate complexity score based on:
+   - Word count
+   - Emotional intensity
+   - Setting complexity
 
-### Shot Planning Rules
+2. **Pacing Selection**: Determine pacing from emotional beat:
+   - tension/action/chaos → DYNAMIC or INTENSE
+   - sorrow/contemplative/hope → CONTEMPLATIVE
+   - Others → MODERATE
 
-- Open scenes with establishing shot (wide)
-- Character introductions require medium or close-up
-- Emotional beats get close-ups
-- Action sequences use faster cuts
-- Contemplative moments hold longer
-- Transitions match emotional shifts
+3. **Shot Count Calculation**:
+   ```
+   shots = base(4) + complexity_bonus(0-3) + pacing_adjustment(-1 to +2)
+   clamped to [min_shots, max_shots]
+   ```
+
+4. **Duration Budgeting**:
+   - Reserve hook_duration (3s) for opening
+   - Distribute remaining time across other shots
+   - Adjust by pacing factor (contemplative=1.2x, intense=0.6x)
+
+5. **Hook Shot Creation**: Based on strategy:
+   | Strategy | Shot Type | Motion |
+   |----------|-----------|--------|
+   | VISUAL_IMPACT | EXTREME_WIDE | ZOOM_IN slow |
+   | MYSTERY | EXTREME_CLOSE | DOLLY_OUT very slow |
+   | ACTION | MEDIUM | TRACK_RIGHT moderate |
+   | EMOTIONAL | CLOSE_UP | STATIC |
+
+6. **Constraint Application**: Process playbook constraints:
+   - `avoid_extreme_close`: Convert to CLOSE_UP
+   - `min_duration:X`: Enforce minimum
+   - `prefer_static`: Override motion specs
+
+### Shot Type Selection Rules
+
+- Prefer variety (track used types)
+- Intense pacing prefers closer shots
+- Avoid repeating previous scene's ending shot type
+- Closing shots use WIDE for transitions, EXTREME_WIDE for final scene
 
 ---
 
@@ -638,64 +661,118 @@ class CriticRecommendation(str, Enum):
 
 ## 9. Iterative Refinement Controller
 
-**Purpose**: Orchestrate the critique → fix → critique loop.
+**Purpose**: Orchestrate the Critic → Fix → Critic loop with budget and iteration caps.
+
+**Implementation**: `src/orchestration/refinement.py`
 
 ### Contract
 
 ```python
-class RefinementInput(BaseModel):
-    """Input to the Refinement Controller."""
-    draft_video_path: str
-    critic_output: CriticOutput
-    shot_plan: ShotPlan
-    assets: list[GeneratedAsset]
-    max_iterations: int = 3
-    cost_cap: float | None = None
-    quality_threshold: float = 7.0
+class RefinementConfig(BaseModel):
+    """Configuration for refinement loop."""
+    max_iterations: int = 5
+    min_iterations: int = 1
+    max_cost_dollars: float = 10.0
+    cost_per_critique: float = 0.05
+    cost_per_fix: float = 0.50
+    target_overall_score: float = 7.5
+    min_acceptable_score: float = 5.0
+    improvement_threshold: float = 0.5
+    dimension_weights: dict[str, float] = {
+        "hook_strength": 1.5,
+        "narrative_clarity": 1.2,
+        "pacing": 1.0,
+        "shot_composition": 1.0,
+        "continuity": 0.8,
+        "audio_mix": 0.7,
+    }
 
 
-class RefinementOutput(BaseModel):
-    """Output from the Refinement Controller."""
-    final_video_path: str
-    final_score: float
-    iterations_used: int
-    total_cost: float
-    refinement_history: list[RefinementIteration]
+class RefinementResult(BaseModel):
+    """Result of refinement process."""
+    id: str
     status: RefinementStatus
+    iterations_completed: int
+    total_runtime_seconds: float
+    initial_score: float
+    final_score: float
+    score_improvement: float
+    target_met: bool
+    total_cost: float
+    iterations: list[RefinementIteration]
 
 
 class RefinementIteration(BaseModel):
-    """Record of one refinement iteration."""
+    """Record of a single iteration."""
     iteration: int
-    issues_addressed: list[str]
-    fixes_applied: list[AppliedFix]
-    score_before: float
-    score_after: float
-    cost: float
+    input_score: float
+    output_score: float
+    score_improvement: float
+    issues_identified: int
+    fixes_applied: int
+    iteration_cost: float
+    recommendation: FeedbackRecommendation
 
 
 class RefinementStatus(str, Enum):
-    APPROVED = "approved"
-    MAX_ITERATIONS = "max_iterations_reached"
-    COST_CAP = "cost_cap_reached"
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    CONVERGED = "converged"
+    MAX_ITERATIONS = "max_iterations"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    ABORTED = "aborted"
     FAILED = "failed"
 ```
 
 ### Behavior
 
-1. Analyze critic feedback
-2. Prioritize fixes by severity and cost
-3. Execute fixes (regenerate assets, re-edit)
-4. Re-run critic
-5. Check convergence
-6. Repeat until pass or limits reached
+1. **Initialization**: Create result with starting state
+2. **Iteration Loop**:
+   - Check budget before starting
+   - Run Critic Agent on current SceneGraph
+   - Prioritize issues by severity × dimension weight
+   - Apply fix function (if provided and issues exist)
+   - Re-critique to measure improvement
+   - Record iteration history
+3. **Stopping Conditions**:
+   - Target score reached
+   - Critic recommends APPROVE
+   - No improvement after min_iterations
+   - Max iterations exhausted
+   - Budget exceeded
 
-### Convergence Rules
+### Issue Prioritization
 
-- Stop if score >= threshold
-- Stop if score improvement < 0.5 for 2 iterations
-- Stop if max iterations reached
-- Stop if cost cap exceeded
+Issues are weighted by:
+```python
+weight = dimension_weight[category] × severity_multiplier
+```
+
+Severity multipliers:
+| Severity | Multiplier |
+|----------|------------|
+| critical | 2.0 |
+| major | 1.5 |
+| minor | 1.0 |
+| suggestion | 0.5 |
+
+### Usage
+
+```python
+from src.orchestration import run_refinement_loop
+
+refined_graph, result = await run_refinement_loop(
+    scene_graph=scene_graph,
+    max_iterations=5,
+    max_cost=10.0,
+    target_score=7.5,
+    fix_function=my_fix_function,
+)
+
+print(f"Status: {result.status.value}")
+print(f"Score: {result.initial_score} → {result.final_score}")
+print(f"Cost: ${result.total_cost:.2f}")
+```
 
 ---
 
@@ -803,6 +880,76 @@ class AgentRegistry:
     @classmethod
     def get(cls, name: str) -> BaseAgent:
         return cls._agents[name]
+```
+
+---
+
+## 11. Feedback Consumer
+
+**Purpose**: Consume stored feedback to derive playbook constraints and re-rank retrievals.
+
+**Implementation**: `src/orchestration/feedback_consumer.py`
+
+### Contract
+
+```python
+class PlaybookConstraint:
+    """A constraint derived from feedback."""
+    constraint_type: PlaybookConstraintType
+    value: str
+    weight: float = 1.0
+    source_feedback_id: str | None = None
+
+
+class PlaybookConstraintType(str, Enum):
+    AVOID_SHOT_TYPE = "avoid_shot_type"
+    PREFER_SHOT_TYPE = "prefer_shot_type"
+    MIN_SHOT_DURATION = "min_shot_duration"
+    MAX_SHOT_DURATION = "max_shot_duration"
+    PREFER_STATIC = "prefer_static"
+    PREFER_DYNAMIC = "prefer_dynamic"
+    # ... more constraint types
+
+
+class ReRankingConfig(BaseModel):
+    """Configuration for retrieval re-ranking."""
+    positive_boost: float = 1.5
+    approve_boost: float = 2.0
+    negative_penalty: float = 0.5
+    reject_penalty: float = 0.1
+    recency_half_life_days: int = 30
+```
+
+### Behavior
+
+1. **Constraint Extraction**:
+   - Parse explicit `playbook_constraints` from feedback
+   - Derive constraints from issue patterns
+   - Extract from fix requests
+
+2. **Re-Ranking**:
+   - Boost similarity scores for positively-reviewed content
+   - Penalize scores for rejected content
+   - Apply recency weighting (newer feedback has more weight)
+
+3. **Aggregation**:
+   - Calculate average scores across feedback
+   - Identify most common issue categories
+   - Track constraint frequency
+
+### Usage
+
+```python
+from src.orchestration import get_constraints_for_story
+
+# Get constraints for a story
+constraints = await get_constraints_for_story(neo4j, story_id)
+
+# Pass to DirectorAgent
+director_input = DirectorInput(
+    scene=scene,
+    playbook_constraints=constraints,
+)
 ```
 
 ---

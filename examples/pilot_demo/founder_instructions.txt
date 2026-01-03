@@ -1,0 +1,87 @@
+HOW TO REVIEW YOUR VIDEO
+========================================
+
+Hi Alice,
+
+Here's how to review the video we've created for you and give us feedback.
+
+
+STEP 1: WATCH THE VIDEO
+----------------------------------------
+
+Open the video file (final_video.mp4) in your review pack folder.
+Watch it all the way through at least once without stopping.
+
+Pro tip: Watch it on the device your audience will use.
+If it's for Instagram, watch on your phone.
+
+
+STEP 2: READ THE MARKETING SUMMARY
+----------------------------------------
+
+Open marketing_summary.txt to see:
+  - Who this video is for
+  - What action we want viewers to take
+  - Key points the video covers
+
+Does this match what you had in mind?
+
+
+STEP 3: CHECK THE DIRECTOR NOTES (OPTIONAL)
+----------------------------------------
+
+If you're curious why we made certain creative choices,
+director_notes.txt explains our thinking.
+
+This is optional - you don't need to read it to give feedback.
+
+
+STEP 4: GIVE US YOUR FEEDBACK
+----------------------------------------
+
+Reply with one of these three responses:
+
+  APPROVE
+  --------
+  "This is ready to publish."
+  We're done! You can use this video.
+
+  MINOR CHANGES
+  -------------
+  "I like it, but please adjust..."
+  Tell us specific small changes. Examples:
+    - "The opening is too slow"
+    - "Can you make it 5 seconds shorter?"
+    - "The ending needs a stronger call-to-action"
+
+  MAJOR CHANGES
+  -------------
+  "This doesn't work for me because..."
+  Tell us what's fundamentally wrong. Examples:
+    - "The tone is too serious, we're a playful brand"
+    - "This misses our key message entirely"
+    - "This doesn't feel like our company"
+
+
+WHAT MAKES GOOD FEEDBACK
+----------------------------------------
+
+  Good: "The video feels too slow in the middle section"
+  Bad:  "I don't like it"
+
+  Good: "Our key message about pricing isn't clear enough"
+  Bad:  "It needs to be better"
+
+  Good: "The ending should say 'Start your free trial' more prominently"
+  Bad:  "Fix the ending"
+
+The more specific you are, the faster we can make it right.
+
+
+QUESTIONS?
+----------------------------------------
+
+Just reply to this email with any questions.
+Please include your Pilot ID: pilot_20240115_abc12345
+
+We're here to help!

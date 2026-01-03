@@ -1,5 +1,7 @@
 """Story Parser Agent v1 - Parses text into SceneGraph."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
 from typing import Any
@@ -436,7 +438,7 @@ class StoryParserAgent(BaseAgent[StoryParserInput, StoryParserOutput]):
             visual_description=f"Establishing shot of {scene.setting.location_name}",
             narration_text=scene.summary[:100] if scene.summary else None,
             composition=Composition(),
-            motion=MotionSpec(camera_motion=CameraMotion.SLOW if scene.estimated_duration_seconds > 30 else CameraMotion.STATIC),
+            motion=MotionSpec(camera_motion=CameraMotion.ZOOM_IN if scene.estimated_duration_seconds > 30 else CameraMotion.STATIC),
         ))
 
         # Medium shot

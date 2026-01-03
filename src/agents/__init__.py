@@ -22,6 +22,16 @@ from src.agents.critic import (
     CriticOutput,
     evaluate_scene_graph,
 )
+from src.agents.director import (
+    DirectorAgent,
+    DirectorInput,
+    DirectorOutput,
+    DirectorConfig,
+    PacingStyle,
+    HookStrategy,
+    AppliedConstraint,
+    create_shot_plans,
+)
 
 __all__ = [
     # Base
@@ -43,4 +53,13 @@ __all__ = [
     "CriticInput",
     "CriticOutput",
     "evaluate_scene_graph",
+    # Director
+    "DirectorAgent",
+    "DirectorInput",
+    "DirectorOutput",
+    "DirectorConfig",
+    "PacingStyle",
+    "HookStrategy",
+    "AppliedConstraint",
+    "create_shot_plans",
 ]

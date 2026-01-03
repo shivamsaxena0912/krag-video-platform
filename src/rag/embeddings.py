@@ -1,5 +1,7 @@
 """Embedding interface and implementations."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 import hashlib
 from typing import Protocol

@@ -153,21 +153,39 @@ class IngestedText(BaseModel):
 
 ### Stage 6: Shot Planning
 
-**Purpose**: Create cinematic shot plan
+**Purpose**: Create cinematic shot plan with duration budgeting and hook strategy.
 
 | Property | Value |
 |----------|-------|
-| Input | `ValidatedScene` + `KRAGContext` |
-| Output | `ShotPlan` |
-| Agent | Creative Director Agent |
+| Input | `Scene` + `DirectorConfig` |
+| Output | `ShotPlan` + `list[Shot]` |
+| Agent | **DirectorAgent v1** |
 | Duration | 10-30 seconds per scene |
 
+**Features**:
+- **Variable shot counts**: 3-10 shots based on scene complexity and pacing
+- **Duration budgeting**: Allocates time across shots, reserving 3s for hook
+- **Hook planning**: Explicit first-3-seconds strategy (visual_impact, mystery, action, emotional)
+- **Playbook constraints**: Applies learned constraints from feedback
+
 **Creates**:
-- Ordered shot sequence
-- Shot specifications (type, duration, motion)
-- Transition plan
-- Audio plan
+- Ordered shot sequence with Ken Burns motion specs
+- Shot specifications (type, duration, motion, composition)
+- Transition plan with pacing-appropriate transitions
+- Audio cues (music start, swell, fade)
 - Narration allocation
+
+**Configuration** (DirectorConfig):
+```python
+target_duration_seconds: float = 60.0
+min_shot_duration: float = 2.0
+max_shot_duration: float = 8.0
+hook_duration: float = 3.0
+min_shots_per_scene: int = 3
+max_shots_per_scene: int = 10
+default_pacing: PacingStyle = MODERATE
+default_hook_strategy: HookStrategy = VISUAL_IMPACT
+```
 
 ---
 
@@ -192,23 +210,40 @@ class IngestedText(BaseModel):
 
 ### Stage 8: Asset Generation
 
-**Purpose**: Generate images, audio, and other assets
+**Purpose**: Generate images, audio, and other assets with manifest tracking.
 
 | Property | Value |
 |----------|-------|
-| Input | `GenerationPrompts` |
-| Output | `list[Asset]` |
-| Agent | Asset Generation Agent |
+| Input | `ShotPlan` + `list[Shot]` |
+| Output | `AssetManifest` + `list[Asset]` |
+| Agent | Asset Generation Agent (or PlaceholderGenerator for testing) |
 | Duration | 30-120 seconds per scene |
 
+**Asset Manifest**:
+Tracks all required assets and their generation status:
+```python
+class AssetManifest(BaseModel):
+    story_id: str
+    status: ManifestStatus  # pending, in_progress, completed, partial, failed
+    requirements: list[AssetRequirement]
+    assets: list[Asset]
+    total_generation_cost: float
+```
+
 **Generates**:
-- Images (1-2 per shot)
-- Voiceover audio
+- Images (1 per shot, 1920x1080)
+- Voiceover audio (if narration text present)
 - Music track selection
 - Sound effects
 
+**Placeholder Generator** (for MVP testing):
+- Creates styled placeholder images with mood-based colors
+- Includes shot type badges and composition guides
+- No API costs, instant generation
+
 **Cost control**:
-- Budget tracking
+- Budget tracking per manifest
+- Priority ordering of requirements
 - Fallback models
 - Caching of reusable assets
 
@@ -216,22 +251,40 @@ class IngestedText(BaseModel):
 
 ### Stage 9: Assembly
 
-**Purpose**: Combine assets into video timeline
+**Purpose**: Combine assets into video timeline using Ken Burns renderer.
 
 | Property | Value |
 |----------|-------|
-| Input | `ShotPlan` + `list[Asset]` |
-| Output | `DraftVideo` |
-| Agent | Editor Agent |
+| Input | `list[Shot]` + `AssetManifest` |
+| Output | `RenderResult` (draft MP4) |
+| Agent | VideoRenderer |
 | Duration | 30-90 seconds per scene |
 
+**VideoRenderer** (FFmpeg-based):
+```python
+class RenderConfig(BaseModel):
+    output_width: int = 1920
+    output_height: int = 1080
+    fps: int = 30
+    video_codec: str = "libx264"
+    crf: int = 23  # Quality (lower = better)
+```
+
+**Ken Burns Effect**:
+Converts camera motion to zoom/pan animation:
+| Camera Motion | Ken Burns Direction |
+|--------------|---------------------|
+| ZOOM_IN | Scale 1.0 → 1.3 |
+| ZOOM_OUT | Scale 1.3 → 1.0 |
+| PAN_LEFT | X offset +0.1 → -0.1 |
+| PAN_RIGHT | X offset -0.1 → +0.1 |
+| STATIC | No movement |
+
 **Operations**:
-1. Sequence images on timeline
-2. Apply motion effects (Ken Burns, parallax)
-3. Sync voiceover
-4. Layer music
-5. Add transitions
-6. Render draft
+1. Render each shot as Ken Burns video clip
+2. Concatenate clips with transitions
+3. Apply audio (future)
+4. Output draft MP4
 
 ---
 
@@ -264,28 +317,52 @@ class IngestedText(BaseModel):
 
 ### Stage 11: Refinement
 
-**Purpose**: Iterate to improve quality
+**Purpose**: Iterate to improve quality via Critic → Fix → Critic loop.
 
 | Property | Value |
 |----------|-------|
-| Input | `CritiqueResult` + `DraftVideo` |
-| Output | `RefinedVideo` |
-| Agent | Iterative Refinement Controller |
-| Duration | Variable (0-N iterations) |
+| Input | `SceneGraph` + `RefinementConfig` |
+| Output | `RefinementResult` + refined `SceneGraph` |
+| Agent | **IterativeRefinementController** |
+| Duration | Variable (1-5 iterations typical) |
+
+**Configuration** (RefinementConfig):
+```python
+class RefinementConfig(BaseModel):
+    max_iterations: int = 5
+    min_iterations: int = 1
+    max_cost_dollars: float = 10.0
+    cost_per_critique: float = 0.05
+    cost_per_fix: float = 0.50
+    target_overall_score: float = 7.5
+    improvement_threshold: float = 0.5
+```
 
 **Loop**:
-1. Analyze critique feedback
-2. Prioritize fixes by severity/cost
-3. Execute fixes (regenerate assets, re-edit)
-4. Re-critique
-5. Check convergence
-6. Repeat or exit
+1. Run Critic Agent → get dimension scores and issues
+2. Prioritize issues by severity × dimension weight
+3. Apply fix function to SceneGraph
+4. Re-run Critic to measure improvement
+5. Check stopping conditions
+6. Record iteration history
 
-**Exit conditions**:
-- Score >= threshold
-- Max iterations reached
-- Cost cap exceeded
-- No improvement in 2 iterations
+**Dimension Weights** (for prioritization):
+```python
+dimension_weights = {
+    "hook_strength": 1.5,      # Hook is critical
+    "narrative_clarity": 1.2,
+    "pacing": 1.0,
+    "shot_composition": 1.0,
+    "continuity": 0.8,
+    "audio_mix": 0.7,
+}
+```
+
+**Exit conditions** (RefinementStatus):
+- `CONVERGED`: Score >= target OR critic approved OR no improvement
+- `MAX_ITERATIONS`: Iteration cap reached
+- `BUDGET_EXCEEDED`: Cost cap reached
+- `FAILED`: Unrecoverable error
 
 ---
 

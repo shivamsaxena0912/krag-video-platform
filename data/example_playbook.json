@@ -1,0 +1,80 @@
+{
+  "playbook_id": "pb_example_001",
+  "name": "Example Learned Patterns",
+  "description": "Example playbook demonstrating pattern-based biasing from expert feedback",
+  "entries": [
+    {
+      "entry_id": "entry_too_long_001",
+      "created_at": "2024-01-15T10:00:00Z",
+      "trigger_scenario": null,
+      "trigger_intent": "social_reel",
+      "trigger_condition": null,
+      "pacing_adjustment": 0.15,
+      "trimming_adjustment": 0.05,
+      "hook_strength_adjustment": 0.0,
+      "max_duration_override": null,
+      "min_duration_override": null,
+      "max_shots_override": null,
+      "director_constraints": ["shorter_shots", "reduce_shots"],
+      "source_feedback_ids": ["fb_001", "fb_003", "fb_005"],
+      "confidence": 0.6,
+      "description": "Social reels tend to run too long",
+      "rationale": "Detected in 3 feedback instances - founder consistently noted videos were too long for platform"
+    },
+    {
+      "entry_id": "entry_hook_weak_001",
+      "created_at": "2024-01-16T14:30:00Z",
+      "trigger_scenario": "feature_launch",
+      "trigger_intent": null,
+      "trigger_condition": null,
+      "pacing_adjustment": 0.0,
+      "trimming_adjustment": 0.0,
+      "hook_strength_adjustment": 0.25,
+      "max_duration_override": null,
+      "min_duration_override": null,
+      "max_shots_override": null,
+      "director_constraints": ["stronger_opening", "visual_hook"],
+      "source_feedback_ids": ["fb_002", "fb_004"],
+      "confidence": 0.5,
+      "description": "Feature launch videos need stronger hooks",
+      "rationale": "Detected in 2 feedback instances - opening wasn't grabbing attention"
+    },
+    {
+      "entry_id": "entry_ending_001",
+      "created_at": "2024-01-17T09:15:00Z",
+      "trigger_scenario": null,
+      "trigger_intent": "paid_ad",
+      "trigger_condition": null,
+      "pacing_adjustment": 0.0,
+      "trimming_adjustment": 0.0,
+      "hook_strength_adjustment": 0.0,
+      "max_duration_override": null,
+      "min_duration_override": null,
+      "max_shots_override": null,
+      "director_constraints": ["clear_cta", "decisive_ending"],
+      "source_feedback_ids": ["fb_006", "fb_007", "fb_008", "fb_009"],
+      "confidence": 0.8,
+      "description": "Paid ads need clearer call-to-action",
+      "rationale": "Detected in 4 feedback instances - ending wasn't driving action"
+    }
+  ],
+  "current_version": 2,
+  "versions": [
+    {
+      "version": 1,
+      "created_at": "2024-01-15T10:00:00Z",
+      "description": "Initial version",
+      "entry_count": 1,
+      "content_hash": "abc123def456"
+    },
+    {
+      "version": 2,
+      "created_at": "2024-01-17T09:15:00Z",
+      "description": "Added hook and ending patterns",
+      "entry_count": 3,
+      "content_hash": "def456ghi789"
+    }
+  ],
+  "created_at": "2024-01-15T10:00:00Z",
+  "updated_at": "2024-01-17T09:15:00Z"
+}

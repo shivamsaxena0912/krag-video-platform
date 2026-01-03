@@ -256,6 +256,56 @@ class AutomatedEvaluator:
         pass
 ```
 
+### Expert Feedback CLI
+
+**Implementation**: `scripts/submit_feedback.py`
+
+The CLI provides three modes for expert feedback submission:
+
+**1. Template Generation**:
+```bash
+python scripts/submit_feedback.py template --story-id story_abc123 --output feedback.json
+```
+
+Generates a JSON template with all feedback fields:
+```json
+{
+  "target_type": "story",
+  "target_id": "story_abc123",
+  "dimension_scores": {
+    "narrative_clarity": 4,
+    "hook_strength": 3,
+    "pacing": 4,
+    "shot_composition": 4,
+    "continuity": 5,
+    "audio_mix": 4
+  },
+  "overall_score": 7.0,
+  "recommendation": "revise_minor",
+  "issues": [...],
+  "strengths": [...],
+  "fix_requests": [...],
+  "playbook_constraints": [
+    "prefer_static_shots_for_dialogue",
+    "min_duration:3.0"
+  ]
+}
+```
+
+**2. File Submission**:
+```bash
+python scripts/submit_feedback.py submit --file feedback.json
+```
+
+Parses JSON, validates structure, stores in Neo4j with full feedback schema.
+
+**3. Interactive Mode**:
+```bash
+python scripts/submit_feedback.py interactive --story-id story_abc123
+```
+
+Prompts for dimension scores, issues, strengths, and recommendation interactively.
+
 ### Human Evaluation Protocol
 
 **Reviewer Types**:
