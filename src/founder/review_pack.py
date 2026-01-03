@@ -6,6 +6,7 @@ founders can easily understand and share with stakeholders.
 
 from __future__ import annotations
 
+import json
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -17,6 +18,56 @@ from src.founder.scenario import FounderScenario
 from src.marketing import MarketingIntent
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class CostBreakdown:
+    """Cost breakdown for a video generation run."""
+
+    image_generation_cost: float = 0.0
+    llm_cost: float = 0.0
+    audio_cost: float = 0.0
+    total_cost: float = 0.0
+    shot_costs: list[dict] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "image_generation_cost": round(self.image_generation_cost, 4),
+            "llm_cost": round(self.llm_cost, 4),
+            "audio_cost": round(self.audio_cost, 4),
+            "total_cost": round(self.total_cost, 4),
+            "breakdown_by_shot": self.shot_costs,
+        }
+
+    @classmethod
+    def from_generation_report(
+        cls,
+        generation_report: dict | None = None,
+        llm_cost: float = 0.0,
+    ) -> "CostBreakdown":
+        """Create a CostBreakdown from asset generation report.
+
+        Args:
+            generation_report: Report from MixedFidelityAssetGenerator
+            llm_cost: Cost of LLM calls (planning, critique, etc.)
+        """
+        breakdown = cls(llm_cost=llm_cost)
+
+        if generation_report:
+            ref_cost = generation_report.get("reference_cost", {})
+            breakdown.image_generation_cost = ref_cost.get("total_cost_usd", 0.0)
+
+        # Audio is currently procedural and has no external cost
+        breakdown.audio_cost = 0.0
+
+        breakdown.total_cost = (
+            breakdown.image_generation_cost +
+            breakdown.llm_cost +
+            breakdown.audio_cost
+        )
+
+        return breakdown
 
 
 @dataclass
@@ -33,11 +84,13 @@ class ReviewPack:
     director_notes_path: Path | None = None
     what_changed_path: Path | None = None
     checklist_path: Path | None = None
+    cost_breakdown_path: Path | None = None
 
     # Metadata
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     duration_seconds: float = 0.0
     shot_count: int = 0
+    cost_breakdown: CostBreakdown | None = None
 
     def is_complete(self) -> bool:
         """Check if all required files are present."""
@@ -46,6 +99,11 @@ class ReviewPack:
             self.marketing_summary_path and self.marketing_summary_path.exists(),
             self.checklist_path and self.checklist_path.exists(),
         ])
+
+    @property
+    def total_cost(self) -> float:
+        """Get total cost of video generation."""
+        return self.cost_breakdown.total_cost if self.cost_breakdown else 0.0
 
 
 class ReviewPackBuilder:
@@ -70,6 +128,7 @@ class ReviewPackBuilder:
         duration_seconds: float = 0.0,
         shot_count: int = 0,
         changes_made: list[str] | None = None,
+        cost_breakdown: CostBreakdown | None = None,
     ) -> ReviewPack:
         """Build a review pack.
 
@@ -83,6 +142,7 @@ class ReviewPackBuilder:
             duration_seconds: Video duration
             shot_count: Number of shots
             changes_made: List of changes from previous version
+            cost_breakdown: Cost breakdown for this video generation
 
         Returns:
             A ReviewPack with all files copied to the pack folder.
@@ -98,6 +158,7 @@ class ReviewPackBuilder:
             version=version,
             duration_seconds=duration_seconds,
             shot_count=shot_count,
+            cost_breakdown=cost_breakdown,
         )
 
         # Copy video
@@ -133,11 +194,18 @@ class ReviewPackBuilder:
         self._write_checklist(checklist_path, scenario, duration_seconds)
         pack.checklist_path = checklist_path
 
+        # Write cost breakdown if provided
+        if cost_breakdown:
+            cost_breakdown_path = pack_path / "video_cost_breakdown.json"
+            self._write_cost_breakdown(cost_breakdown_path, cost_breakdown)
+            pack.cost_breakdown_path = cost_breakdown_path
+
         logger.info(
             "review_pack_built",
             path=str(pack_path),
             version=version,
             scenario=scenario.scenario_id,
+            total_cost=cost_breakdown.total_cost if cost_breakdown else 0.0,
         )
 
         return pack
@@ -296,3 +364,12 @@ class ReviewPackBuilder:
 
         with open(path, "w") as f:
             f.write("\n".join(lines))
+
+    def _write_cost_breakdown(
+        self,
+        path: Path,
+        cost_breakdown: CostBreakdown,
+    ) -> None:
+        """Write the cost breakdown JSON file."""
+        with open(path, "w") as f:
+            json.dump(cost_breakdown.to_dict(), f, indent=2)

@@ -6,15 +6,22 @@ for shots with fidelity_level=REFERENCE.
 
 The generator is designed as a drop-in alternative to PlaceholderGenerator
 with the same interface (generate() method taking AssetRequirement).
+
+Backends:
+- StubReferenceBackend: Testing backend that generates styled placeholders
+- OpenAIImageBackend: DALL-E 3 for production-quality marketing visuals
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
+import os
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -229,6 +236,186 @@ class StubReferenceBackend(ImageGeneratorBackend):
         return img, REFERENCE_COST_ESTIMATES["stub"]
 
 
+class OpenAIImageBackend(ImageGeneratorBackend):
+    """OpenAI DALL-E 3 backend for high-fidelity marketing visuals.
+
+    Uses the OpenAI Images API to generate production-quality images
+    suitable for founder-facing marketing videos.
+
+    Requires OPENAI_API_KEY environment variable.
+
+    Costs (as of 2024):
+    - DALL-E 3 Standard (1024x1024): $0.04
+    - DALL-E 3 HD (1024x1024): $0.08
+    - DALL-E 3 Standard (1792x1024): $0.08
+    - DALL-E 3 HD (1792x1024): $0.12
+    """
+
+    def __init__(
+        self,
+        use_hd: bool = False,
+        style: str = "vivid",  # "vivid" or "natural"
+    ):
+        self.use_hd = use_hd
+        self.style = style
+        self._client = None
+
+    def _get_client(self):
+        """Lazy initialization of OpenAI client."""
+        if self._client is None:
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError(
+                    "OPENAI_API_KEY environment variable is required for OpenAI backend. "
+                    "Set it with: export OPENAI_API_KEY='your-key-here'"
+                )
+            try:
+                from openai import AsyncOpenAI
+                self._client = AsyncOpenAI(api_key=api_key)
+            except ImportError:
+                raise ImportError(
+                    "openai package is required for OpenAI backend. "
+                    "Install with: pip install openai"
+                )
+        return self._client
+
+    @property
+    def name(self) -> str:
+        return "dalle3_hd" if self.use_hd else "dalle3"
+
+    def _build_marketing_prompt(
+        self,
+        prompt: str,
+        style_hints: list[str],
+        visual_spec: ShotVisualSpec | None = None,
+    ) -> str:
+        """Build an optimized prompt for marketing visuals.
+
+        DALL-E 3 works best with detailed, descriptive prompts that
+        specify the desired style, mood, and composition.
+        """
+        parts = []
+
+        # Base description
+        parts.append(prompt)
+
+        # Add visual spec details
+        if visual_spec:
+            if visual_spec.lighting_style:
+                parts.append(f"{visual_spec.lighting_style.value} lighting")
+            if visual_spec.color_temperature:
+                parts.append(f"{visual_spec.color_temperature} color temperature")
+            if visual_spec.style_keywords:
+                parts.extend(visual_spec.style_keywords[:3])
+
+        # Add style hints
+        if style_hints:
+            parts.extend(style_hints[:5])
+
+        # Add marketing-specific styling
+        marketing_style = [
+            "professional marketing photography",
+            "clean composition",
+            "suitable for social media",
+            "high quality",
+        ]
+        parts.extend(marketing_style)
+
+        # Join and limit length (DALL-E 3 max is 4000 chars)
+        full_prompt = ", ".join(parts)
+        if len(full_prompt) > 3800:
+            full_prompt = full_prompt[:3800] + "..."
+
+        return full_prompt
+
+    def _get_size_for_dimensions(self, width: int, height: int) -> str:
+        """Map requested dimensions to DALL-E 3 supported sizes.
+
+        DALL-E 3 supports: 1024x1024, 1792x1024, 1024x1792
+        """
+        aspect_ratio = width / height
+
+        if aspect_ratio > 1.5:
+            # Landscape
+            return "1792x1024"
+        elif aspect_ratio < 0.67:
+            # Portrait
+            return "1024x1792"
+        else:
+            # Square-ish
+            return "1024x1024"
+
+    def _get_cost(self, size: str) -> float:
+        """Get cost for the given size and quality."""
+        # DALL-E 3 pricing as of 2024
+        costs = {
+            ("1024x1024", False): 0.04,
+            ("1024x1024", True): 0.08,
+            ("1792x1024", False): 0.08,
+            ("1792x1024", True): 0.12,
+            ("1024x1792", False): 0.08,
+            ("1024x1792", True): 0.12,
+        }
+        return costs.get((size, self.use_hd), 0.08)
+
+    async def generate(
+        self,
+        prompt: str,
+        width: int,
+        height: int,
+        style_hints: list[str],
+        visual_spec: ShotVisualSpec | None = None,
+    ) -> tuple[Image.Image, float]:
+        """Generate an image using DALL-E 3."""
+        client = self._get_client()
+
+        # Build optimized prompt
+        full_prompt = self._build_marketing_prompt(prompt, style_hints, visual_spec)
+
+        # Get appropriate size
+        size = self._get_size_for_dimensions(width, height)
+        cost = self._get_cost(size)
+
+        logger.info(
+            "dalle3_generate_request",
+            prompt_length=len(full_prompt),
+            size=size,
+            quality="hd" if self.use_hd else "standard",
+            style=self.style,
+        )
+
+        try:
+            response = await client.images.generate(
+                model="dall-e-3",
+                prompt=full_prompt,
+                size=size,
+                quality="hd" if self.use_hd else "standard",
+                style=self.style,
+                response_format="b64_json",
+                n=1,
+            )
+
+            # Decode the image
+            image_data = base64.b64decode(response.data[0].b64_json)
+            image = Image.open(BytesIO(image_data))
+
+            # Resize to requested dimensions if needed
+            if (image.width, image.height) != (width, height):
+                image = image.resize((width, height), Image.Resampling.LANCZOS)
+
+            logger.info(
+                "dalle3_generate_success",
+                revised_prompt=response.data[0].revised_prompt[:100] if response.data[0].revised_prompt else None,
+                cost=cost,
+            )
+
+            return image, cost
+
+        except Exception as e:
+            logger.error("dalle3_generate_failed", error=str(e))
+            raise
+
+
 class VisualReferenceGenerator:
     """Generator for high-fidelity reference images.
 
@@ -398,10 +585,11 @@ def create_reference_generator(
     """
     if backend_name == "stub":
         backend = StubReferenceBackend()
+    elif backend_name == "dalle3":
+        backend = OpenAIImageBackend(use_hd=False, **backend_kwargs)
+    elif backend_name == "dalle3_hd":
+        backend = OpenAIImageBackend(use_hd=True, **backend_kwargs)
     else:
-        # Future: Add real backends here
-        # elif backend_name == "dalle3":
-        #     backend = DallE3Backend(**backend_kwargs)
         logger.warning(
             "unknown_backend_using_stub",
             requested=backend_name,

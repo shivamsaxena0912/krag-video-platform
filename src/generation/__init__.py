@@ -15,6 +15,7 @@ from src.generation.reference_generator import (
     VisualReferenceGenerator,
     ImageGeneratorBackend,
     StubReferenceBackend,
+    OpenAIImageBackend,
     create_reference_generator,
 )
 from src.generation.asset_generator import (
@@ -35,6 +36,10 @@ from src.generation.renderer import (
     ShotRenderReport,
     KenBurnsDirection,
     KenBurnsParams,
+    RenderQuality,
+    RENDER_QUALITY_PRESETS,
+    create_render_config,
+    get_quality_preset,
     motion_to_ken_burns,
     visual_spec_to_ken_burns,
     render_draft_video,
@@ -59,6 +64,7 @@ __all__ = [
     "VisualReferenceGenerator",
     "ImageGeneratorBackend",
     "StubReferenceBackend",
+    "OpenAIImageBackend",
     "create_reference_generator",
     # Mixed Fidelity Generator
     "MixedFidelityAssetGenerator",
@@ -76,6 +82,10 @@ __all__ = [
     "ShotRenderReport",
     "KenBurnsDirection",
     "KenBurnsParams",
+    "RenderQuality",
+    "RENDER_QUALITY_PRESETS",
+    "create_render_config",
+    "get_quality_preset",
     "motion_to_ken_burns",
     "visual_spec_to_ken_burns",
     "render_draft_video",

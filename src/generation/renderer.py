@@ -21,6 +21,53 @@ from src.generation.audio_generator import AudioBedGenerator
 logger = get_logger(__name__)
 
 
+class RenderQuality(str, Enum):
+    """Render quality presets for video generation.
+
+    DRAFT: Fast iteration with all placeholders, lower quality encoding.
+           Best for quick edit checks and internal reviews.
+
+    FOUNDER_PREVIEW: Mixed fidelity with high-quality key shots (3-5).
+                     Suitable for founder review and feedback collection.
+                     This is the default for pilot runs.
+
+    DEMO_ONLY: All high-fidelity shots (cost-capped at $1.00).
+               For demos and presentations only. NOT for iterative feedback.
+    """
+
+    DRAFT = "draft"
+    FOUNDER_PREVIEW = "founder_preview"
+    DEMO_ONLY = "demo_only"
+
+
+# Render quality presets - maps quality level to config overrides
+RENDER_QUALITY_PRESETS = {
+    RenderQuality.DRAFT: {
+        "crf": 28,  # Lower quality for speed
+        "preset": "fast",
+        "enable_music_bed": False,
+        "reference_backend": "stub",
+        "max_reference_shots": 0,  # All placeholders
+    },
+    RenderQuality.FOUNDER_PREVIEW: {
+        "crf": 23,  # Good quality
+        "preset": "medium",
+        "enable_music_bed": True,
+        "reference_backend": "dalle3",  # Real images for key shots
+        "max_reference_shots": 5,
+        "reference_cost_cap": 0.50,
+    },
+    RenderQuality.DEMO_ONLY: {
+        "crf": 18,  # High quality
+        "preset": "slow",
+        "enable_music_bed": True,
+        "reference_backend": "dalle3",
+        "max_reference_shots": 15,  # All shots can be high-fidelity
+        "reference_cost_cap": 1.00,
+    },
+}
+
+
 class KenBurnsDirection(str, Enum):
     """Direction for Ken Burns effect."""
 
@@ -193,6 +240,42 @@ class RenderConfig(BaseModel):
     # Audio settings
     enable_music_bed: bool = True
     music_bed_volume: float = 0.5  # Relative to main audio
+
+
+def create_render_config(
+    quality: RenderQuality = RenderQuality.FOUNDER_PREVIEW,
+    **overrides,
+) -> RenderConfig:
+    """Create a RenderConfig from a quality preset with optional overrides.
+
+    Args:
+        quality: The render quality preset to use
+        **overrides: Additional config overrides
+
+    Returns:
+        Configured RenderConfig
+    """
+    preset = RENDER_QUALITY_PRESETS.get(quality, {})
+
+    # Extract only RenderConfig-relevant fields from preset
+    config_fields = {
+        k: v for k, v in preset.items()
+        if k in RenderConfig.model_fields
+    }
+
+    # Apply overrides
+    config_fields.update(overrides)
+
+    return RenderConfig(**config_fields)
+
+
+def get_quality_preset(quality: RenderQuality) -> dict:
+    """Get the full preset configuration for a quality level.
+
+    This includes asset generator settings (backend, cost cap) that
+    aren't part of RenderConfig.
+    """
+    return RENDER_QUALITY_PRESETS.get(quality, RENDER_QUALITY_PRESETS[RenderQuality.FOUNDER_PREVIEW])
 
 
 class ShotRenderReport(BaseModel):
