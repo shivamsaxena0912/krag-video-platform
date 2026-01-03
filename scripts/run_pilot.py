@@ -125,6 +125,10 @@ from src.generation import (
     RenderQuality,
     get_quality_preset,
 )
+from src.generation.pipeline import (
+    run_real_pipeline,
+    generate_cost_summary_for_founder,
+)
 from src.common.logging import setup_logging, get_logger
 
 # Setup logging
@@ -621,6 +625,7 @@ async def run_pilot_attempt(
     brand: BrandContext | None = None,
     playbook_path: Path | None = None,
     render_quality: RenderQuality = RenderQuality.FOUNDER_PREVIEW,
+    debug_visual_fidelity: bool = False,
 ) -> bool:
     """Run a single attempt within a pilot.
 
@@ -630,6 +635,7 @@ async def run_pilot_attempt(
         brand: Optional brand context.
         playbook_path: Optional playbook path.
         render_quality: Render quality preset (draft, founder_preview, demo_only).
+        debug_visual_fidelity: If True, add "REFERENCE SHOT" watermark to high-fidelity images.
 
     Returns:
         True if attempt was successful.
@@ -701,33 +707,39 @@ async def run_pilot_attempt(
     # Start metrics
     metrics = TimeToValueMetrics()
 
-    # In a real implementation, this would run the full pipeline.
-    # For now, we simulate a successful run.
-    print("\n   Running pipeline...")
-    print("   (In production, this runs the full video generation pipeline)")
+    # Run the REAL pipeline - no simulation
+    print("\n   Running REAL video generation pipeline...")
+    print(f"   Backend: {reference_backend}")
+    print(f"   Cost cap: ${cost_cap:.2f}")
+    if debug_visual_fidelity:
+        print("   Debug mode: REFERENCE SHOT watermarks enabled")
+    print()
 
-    # Simulate time to first cut
-    import time
-    start_time = time.time()
-
-    # Simulate some work
-    await asyncio.sleep(0.5)
+    # Run the actual pipeline
+    pipeline_result = await run_real_pipeline(
+        scenario_id=pilot.scenario_type,
+        company_name=pilot.company_name,
+        founder_name=pilot.founder_name,
+        output_dir=output_dir,
+        render_quality=render_quality,
+        debug_visual_fidelity=debug_visual_fidelity,
+    )
 
     # Record metrics
     metrics.record_first_cut()
-    ttfc = metrics.time_to_first_cut_seconds or 0.0
+    ttfc = pipeline_result.generation_time_seconds
 
-    # Simulate SLA check
-    sla_passed = True
-    sla_violations: list[str] = []
+    # Determine SLA status
+    sla_passed = pipeline_result.success
+    sla_violations = pipeline_result.errors.copy()
 
-    # Add the attempt
+    # Add the attempt with real data
     attempt = pilot.add_attempt(
-        video_path=str(output_dir / "draft_v1.mp4"),
-        review_pack_path=str(output_dir / "review_pack"),
+        video_path=str(pipeline_result.video_path) if pipeline_result.video_path else None,
+        review_pack_path=str(output_dir),
         time_to_first_cut_seconds=ttfc,
         iteration_count=1,
-        total_cost_dollars=0.05,  # Simulated cost
+        total_cost_dollars=pipeline_result.total_cost_usd,
         sla_passed=sla_passed,
         sla_violations=sla_violations,
     )
@@ -738,13 +750,49 @@ async def run_pilot_attempt(
     # Generate founder artifacts in output directory
     artifacts = generate_founder_artifacts(pilot, output_dir)
 
+    # Add cost summary to marketing_summary.txt if it exists
+    marketing_summary_path = output_dir / "marketing_summary.txt"
+    if pipeline_result.fidelity_proof:
+        cost_summary = generate_cost_summary_for_founder(
+            pipeline_result.reference_count,
+            pipeline_result.total_cost_usd,
+        )
+        if marketing_summary_path.exists():
+            with open(marketing_summary_path, "a") as f:
+                f.write(f"\n\n---\n{cost_summary}\n")
+
+    # Print results
     print(f"\n   Attempt #{attempt_number} complete!")
     print(f"   Time to first cut: {ttfc:.1f}s")
     print(f"   SLA: {'PASSED' if sla_passed else 'FAILED'}")
+
+    if pipeline_result.success:
+        print(f"\n   Video generated: {pipeline_result.video_path}")
+        print(f"   Total cost: ${pipeline_result.total_cost_usd:.2f}")
+        print(f"   Reference shots: {pipeline_result.reference_count}")
+        print(f"   Placeholder shots: {pipeline_result.placeholder_count}")
+
+        if pipeline_result.fidelity_proof:
+            proof = pipeline_result.fidelity_proof
+            print(f"\n   Fidelity Proof:")
+            print(f"     - Backend: {proof.image_backend}")
+            print(f"     - Reference images: {len(proof.reference_image_paths)}")
+            print(f"     - Image cost: ${proof.image_cost_usd:.2f}")
+    else:
+        print(f"\n   Pipeline errors:")
+        for error in pipeline_result.errors:
+            print(f"     - {error}")
+
     print(f"\n   Artifacts generated:")
     print(f"     - {artifacts.instructions_path}")
     print(f"     - {artifacts.expectations_path}")
     print(f"     - {artifacts.criteria_path}")
+    if pipeline_result.manifest_path:
+        print(f"     - {pipeline_result.manifest_path}")
+    if pipeline_result.render_report_path:
+        print(f"     - {pipeline_result.render_report_path}")
+    if pipeline_result.cost_breakdown_path:
+        print(f"     - {pipeline_result.cost_breakdown_path}")
 
     print(f"\n   Output directory: {output_dir}")
     print()
@@ -752,7 +800,7 @@ async def run_pilot_attempt(
     print(f"     Human:     python scripts/run_pilot.py --feedback {pilot.pilot_id} --attempt {attempt_number}")
     print(f"     Simulated: python scripts/run_pilot.py --simulate-feedback {pilot.pilot_id} --attempt {attempt_number} --persona growth_marketer")
 
-    return True
+    return pipeline_result.success
 
 
 async def start_new_pilot(
@@ -763,6 +811,7 @@ async def start_new_pilot(
     playbook_path: Path | None = None,
     store: PilotStore | None = None,
     render_quality: RenderQuality = RenderQuality.FOUNDER_PREVIEW,
+    debug_visual_fidelity: bool = False,
 ) -> PilotRun:
     """Start a new pilot engagement."""
     store = store or PilotStore(PILOT_STORAGE_DIR)
@@ -809,7 +858,9 @@ async def start_new_pilot(
 
     # Run first attempt
     print("Starting first attempt...")
-    await run_pilot_attempt(pilot, store, brand, playbook_path, render_quality)
+    await run_pilot_attempt(
+        pilot, store, brand, playbook_path, render_quality, debug_visual_fidelity
+    )
 
     return pilot
 
@@ -819,6 +870,7 @@ async def continue_pilot(
     store: PilotStore | None = None,
     force: bool = False,
     render_quality: RenderQuality = RenderQuality.FOUNDER_PREVIEW,
+    debug_visual_fidelity: bool = False,
 ) -> bool:
     """Continue an existing pilot with a new attempt.
 
@@ -827,6 +879,7 @@ async def continue_pilot(
         store: Optional pilot store.
         force: Skip feedback check if True.
         render_quality: Render quality preset.
+        debug_visual_fidelity: If True, add watermark to REFERENCE shots.
 
     Returns:
         True if successful.
@@ -876,7 +929,9 @@ async def continue_pilot(
         if not playbook_path.exists():
             playbook_path = None
 
-    return await run_pilot_attempt(pilot, store, brand, playbook_path, render_quality)
+    return await run_pilot_attempt(
+        pilot, store, brand, playbook_path, render_quality, debug_visual_fidelity
+    )
 
 
 def main():
@@ -917,6 +972,11 @@ Examples:
         choices=["draft", "founder_preview", "demo_only"],
         default="founder_preview",
         help="Render quality preset (default: founder_preview)",
+    )
+    parser.add_argument(
+        "--debug-fidelity",
+        action="store_true",
+        help="Add 'REFERENCE SHOT' watermark to high-fidelity images (internal verification only)",
     )
 
     # Continue pilot
@@ -993,13 +1053,16 @@ Examples:
         success = simulate_feedback(store, args.simulate_feedback, args.attempt, args.persona)
         sys.exit(0 if success else 1)
 
-    # Parse render quality
+    # Parse render quality and debug flag
     render_quality = RenderQuality(args.render_quality)
+    debug_visual_fidelity = args.debug_fidelity
 
     # Continue pilot
     if args.continue_pilot:
         success = asyncio.run(continue_pilot(
-            args.continue_pilot, store, force=args.force, render_quality=render_quality
+            args.continue_pilot, store, force=args.force,
+            render_quality=render_quality,
+            debug_visual_fidelity=debug_visual_fidelity,
         ))
         sys.exit(0 if success else 1)
 
@@ -1034,6 +1097,7 @@ Examples:
         playbook_path=playbook_path,
         store=store,
         render_quality=render_quality,
+        debug_visual_fidelity=debug_visual_fidelity,
     ))
 
 

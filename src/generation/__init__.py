@@ -49,6 +49,12 @@ from src.generation.audio_generator import (
     generate_music_bed,
     generate_scene_transition_sound,
 )
+from src.generation.pipeline import (
+    run_real_pipeline,
+    generate_cost_summary_for_founder,
+    FidelityProof,
+    PipelineResult,
+)
 
 __all__ = [
     # Manifest
@@ -93,4 +99,9 @@ __all__ = [
     "AudioBedGenerator",
     "generate_music_bed",
     "generate_scene_transition_sound",
+    # Pipeline
+    "run_real_pipeline",
+    "generate_cost_summary_for_founder",
+    "FidelityProof",
+    "PipelineResult",
 ]
